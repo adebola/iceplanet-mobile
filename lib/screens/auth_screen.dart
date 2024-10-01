@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../utils/tools.dart';
 import '../widgets/user_image_picker.dart';
 
-const Url = 'http://10.0.2.2:3000/api/v1';
+const Url = 'https://store.factorialsystems.io/api/v1';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -25,7 +25,6 @@ class _AuthScreenState extends State<AuthScreen> {
   var _userPassword = '';
   var _userName = '';
   var _telephoneNumber = '';
-  var _organizationName = '';
   var _address = '';
   File? _selectedImage;
 
@@ -36,14 +35,6 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!isValid) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Please fill out the form.'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
-      return;
-    }
-
-    if (!_isLogin && _selectedImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Please pick an image.'),
         backgroundColor: Theme.of(context).colorScheme.error,
       ));
       return;
@@ -69,7 +60,7 @@ class _AuthScreenState extends State<AuthScreen> {
               'password': _userPassword,
             }));
         final data = json.decode(response.body);
-        logger.d(data);
+        logger.d('login Response $data');
       } catch (error) {
         var message =
             'An error occurred, logging in, please check your credentials!';
@@ -89,19 +80,33 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } else {
       // Sign user up
-      return logger.d(_selectedImage!);
 
-      try {
+      var imageUrl;
+
+      if (_selectedImage != null) {
+        final fileName = _selectedImage!.path.split('/').last;
+        logger.d('FileName $fileName');
+
         var results = await AwsS3.uploadFile(
           file: File(_selectedImage!.path),
           bucket: dotenv.env['AWS_BUCKET_NAME']!,
           region: dotenv.env['AWS_REGION']!,
           accessKey: dotenv.env['AWS_ACCESSKEY_ID']!,
           secretKey: dotenv.env['AWS_SECRET_ACCESS_KEY']!,
-          destDir: 'prodImages',
-          filename: '',
+          destDir: 'avatar-images/',
+          filename: fileName,
         );
 
+        if (results != '204' || results != '200') {
+          logger.d('Unknown Results: $results');
+          return;
+        }
+
+        imageUrl =
+            'https://${dotenv.env['AWS_BUCKET_NAME']}.s3.${dotenv.env['AWS_REGION']}.amazonaws.com/$fileName';
+      }
+
+      try {
         final response = await http.post(Uri.parse('$Url/auth/signup'),
             headers: <String, String>{
               'Content-Type': 'application/json; charset=UTF-8',
@@ -112,32 +117,10 @@ class _AuthScreenState extends State<AuthScreen> {
               'fullName': _userName,
               'telephoneNumber': _telephoneNumber,
               'address': _address,
-              'organisation': _organizationName,
+              'avatar': imageUrl,
             }));
         final data = json.decode(response.body);
         logger.d(data);
-
-        // final storageRef = FirebaseStorage.instance
-        //     .ref()
-        //     .child('user_images')
-        //     .child('${userCredentials.user!.uid}.jpg');
-        //
-        // final result = await storageRef.putFile(_selectedImage!);
-        // final imageUrl = await storageRef.getDownloadURL();
-        // logger.d('Image URL: $imageUrl');
-        //
-        // await FirebaseFirestore.instance
-        //     .collection('users')
-        //     .doc(userCredentials.user!.uid)
-        //     .set({
-        //   'username': _userName,
-        //   'email': _userEmail,
-        //   'image_url': imageUrl,
-        // });
-        //
-        // // _firebase.currentUser!.updatePhotoURL(imageUrl);
-        //
-        // logger.d(userCredentials);
       } catch (error) {
         var message = 'An error occurred, signing up';
 
@@ -163,7 +146,11 @@ class _AuthScreenState extends State<AuthScreen> {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
               margin: const EdgeInsets.only(
-                  top: 30, bottom: 20, left: 20, right: 20),
+                  top: 30,
+                  bottom: 20,
+                  left: 20,
+                  right: 20
+              ),
               width: 200,
               child: Image.asset('assets/images/logo.png'),
             ),
@@ -251,23 +238,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         if (!_isLogin)
                           TextFormField(
-                            decoration: const InputDecoration(
-                                labelText: 'Organisation Name'),
-                            validator: (value) {
-                              if (value == null || value.trim().length < 8) {
-                                return 'Organisation must be at least 8 characters long.';
-                              }
-                              return null;
-                            },
-                            onSaved: (value) {
-                              _organizationName = value!;
-                              logger.d('Organization Name: $_organizationName');
-                            },
-                          ),
-                        if (!_isLogin)
-                          TextFormField(
                             keyboardType: TextInputType.multiline,
-                            minLines: 2,
                             maxLines: null,
                             decoration:
                                 const InputDecoration(labelText: 'Address'),
@@ -292,7 +263,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                   backgroundColor: Theme.of(context)
                                       .colorScheme
                                       .primaryContainer),
-                              child: Text(_isLogin ? 'Login' : 'Sign Up')),
+                              child: Text(
+                                  _isLogin ? 'Login' : 'Sign Up'
+                              )
+                          ),
                         if (!_isAuthenticating)
                           TextButton(
                               onPressed: () {
