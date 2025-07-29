@@ -4,10 +4,11 @@ import 'package:aws_s3_upload_lite/aws_s3_upload_lite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:store_mobile/constants/app_colors.dart';
+import 'package:store_mobile/helpers/toast_helper.dart';
 import '../utils/tools.dart';
 import '../widgets/user_image_picker.dart';
 
-const Url = 'https://store.factorialsystems.io/api/v1';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -29,14 +30,15 @@ class _AuthScreenState extends State<AuthScreen> {
   File? _selectedImage;
 
   final _formKey = GlobalKey<FormState>();
+  final _baseUrl = dotenv.env['BASE_URL'];
 
   Future<void> _submit() async {
     final isValid = _formKey.currentState!.validate();
     if (!isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Please fill out the form.'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ToastHelper.showToast(
+          message: 'Please fill out the form.',
+          backgroundColor: AppColors.errorColor
+      );
       return;
     }
 
@@ -47,41 +49,39 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     if (_isLogin) {
-      try {
-        logger.d(
-            'Logging in with email: $_userEmail and password: $_userPassword');
-
-        final response = await http.post(Uri.parse('$Url/auth/login'),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-            },
-            body: jsonEncode(<String, String>{
-              'email': _userEmail,
-              'password': _userPassword,
-            }));
+      http
+          .post(Uri.parse('$_baseUrl/auth/login'),
+              headers: <String, String>{
+                'Content-Type': 'application/json; charset=UTF-8',
+              },
+              body: jsonEncode(<String, String>{
+                'email': _userEmail,
+                'password': _userPassword,
+              }))
+          .then((response) {
         final data = json.decode(response.body);
-        logger.d('login Response $data');
-      } catch (error) {
-        var message =
-            'An error occurred, logging in, please check your credentials!';
+        logger.d('Response: $data');
 
-        logger.e(error);
-        logger.e(message);
-
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
-      } finally {
         setState(() {
           _isAuthenticating = false;
         });
-      }
+
+        if (response.statusCode != 200) {
+          ToastHelper.showToast(
+              message: data['message']!,
+              backgroundColor: AppColors.errorColor
+          );
+          return;
+        }
+
+        ToastHelper.showToast(
+          message: 'Login Successful',
+          backgroundColor: AppColors.groceryInfo
+        );
+      });
     } else {
       // Sign user up
-
-      var imageUrl;
+      String? imageUrl;
 
       if (_selectedImage != null) {
         final fileName = _selectedImage!.path.split('/').last;
@@ -106,34 +106,45 @@ class _AuthScreenState extends State<AuthScreen> {
             'https://${dotenv.env['AWS_BUCKET_NAME']}.s3.${dotenv.env['AWS_REGION']}.amazonaws.com/$fileName';
       }
 
-      try {
-        final response = await http.post(Uri.parse('$Url/auth/signup'),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-            },
-            body: jsonEncode(<String, String>{
-              'email': _userEmail,
-              'password': _userPassword,
-              'fullName': _userName,
-              'telephoneNumber': _telephoneNumber,
-              'address': _address,
-              'avatar': imageUrl,
-            }));
-        final data = json.decode(response.body);
-        logger.d(data);
-      } catch (error) {
-        var message = 'An error occurred, signing up';
+      final body = {
+        'email': _userEmail,
+        'password': _userPassword,
+        'fullName': _userName,
+        'telephoneNumber': _telephoneNumber,
+        'address': _address,
+      };
 
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
-      } finally {
+      if (imageUrl != null) {
+        body['avatarImage'] = imageUrl;
+      }
+
+      http
+          .post(Uri.parse('$_baseUrl/auth/signup'),
+              headers: <String, String>{
+                'Content-Type': 'application/json; charset=UTF-8',
+              },
+              body: jsonEncode(body))
+          .then((response) {
+        final data = json.decode(response.body);
+        logger.d('Response: $data');
+
         setState(() {
           _isAuthenticating = false;
         });
-      }
+
+        if (response.statusCode != 201) {
+          ToastHelper.showToast(
+              message: data['message']!,
+              backgroundColor: AppColors.errorColor
+          );
+          return;
+        }
+
+        ToastHelper.showToast(
+            message: 'Sign up Successful',
+            backgroundColor: AppColors.errorColor
+        );
+      });
     }
   }
 
@@ -263,20 +274,30 @@ class _AuthScreenState extends State<AuthScreen> {
                                   backgroundColor: Theme.of(context)
                                       .colorScheme
                                       .primaryContainer),
-                              child: Text(
-                                  _isLogin ? 'Login' : 'Sign Up'
-                              )
-                          ),
+                              child: Text(_isLogin ? 'Login' : 'Sign Up')),
+
+
                         if (!_isAuthenticating)
-                          TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _isLogin = !_isLogin;
-                                });
-                              },
-                              child: Text(_isLogin
-                                  ? 'Create an Account'
-                                  : 'I already have an account Login')),
+                          Row (
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                icon: const Icon(Icons.arrow_circle_left_sharp),
+                              ),
+                              TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isLogin = !_isLogin;
+                                    });
+                                  },
+                                  child: Text(_isLogin
+                                      ? 'Create an Account'
+                                      : 'I already have an account Login')),
+                            ],
+                          ),
                       ],
                     ),
                   ),

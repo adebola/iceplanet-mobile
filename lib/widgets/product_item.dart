@@ -1,18 +1,34 @@
+import 'package:currency_formatter/currency_formatter.dart';
 import 'package:flutter/material.dart';
+import 'package:store_mobile/utils/tools.dart';
 
-class ProductItem extends StatelessWidget {
-  final dynamic product;
-  final VoidCallback onAddToCart;
-  final String? selectedVariant;
-  final ValueChanged<String> onVariantSelected;
+import '../models/product.dart';
+
+class ProductItem extends StatefulWidget {
+  final Product product;
 
   const ProductItem({
     super.key,
     required this.product,
-    required this.onAddToCart,
-    required this.selectedVariant,
-    required this.onVariantSelected,
   });
+
+  @override
+  State<StatefulWidget> createState() {
+    return _ProductItem();
+  }
+}
+
+class _ProductItem extends State<ProductItem> {
+  double? _price;
+
+  void _addToCart() {}
+
+
+  @override
+  void initState() {
+    super.initState();
+    _price = widget.product.bundles?[0].price;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,31 +40,31 @@ class ProductItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              product['name'],
+              widget.product.name!,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            Text('Price: \$${product['price']}'),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              hint: const Text('Select Variant'),
-              value: selectedVariant,
-              items: (product['variants'] as List<dynamic>).map((variant) {
-                return DropdownMenuItem<String>(
-                  value: variant['name'],
-                  child: Text(variant['name']),
-                );
-              }).toList(),
-              onChanged: (value) {
-                onVariantSelected(value!);
-              },
-            ),
+            Text(CurrencyFormatter.format(_price!, nairaSettings)),
+            // const SizedBox(height: 10),
+            // DropdownButton<String>(
+            //   hint: const Text('Select Variant'),
+            //   value: widget.product.bundles[0].unit,
+            //   items: (widget.product.bundles).map((bundle) {
+            //     return DropdownMenuItem<String>(
+            //       value: bundle.id,
+            //       child: Text(bundle.unit),
+            //     );
+            //   }).toList(),
+            //   onChanged: (value) {
+            //     _onSelectBundle(value!);
+            //   },
+            // ),
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
               child: IconButton(
                 icon: const Icon(Icons.add_shopping_cart),
-                onPressed: onAddToCart,
+                onPressed: _addToCart,
               ),
             ),
           ],

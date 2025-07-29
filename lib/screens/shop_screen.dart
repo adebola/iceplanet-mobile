@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../utils/tools.dart';
 import '../widgets/product_item.dart';
 
 class ShopScreen extends StatefulWidget {
@@ -17,7 +18,6 @@ class _ShopScreenState extends State<ShopScreen> {
   bool isLoading = false;
   bool hasMore = true;
   Map<int, String> selectedVariants = {}; // To store selected variants for each product
-
   @override
   void initState() {
     super.initState();
@@ -31,13 +31,15 @@ class _ShopScreenState extends State<ShopScreen> {
       isLoading = true;
     });
 
-    final response = await http.get(Uri.parse('https://your-backend-api.com/products?page=$page'));
+    final response = await http.get(Uri.parse('https://store.factorialsystems.io/api/v1/product'));
+    logger.d(response.body);
+
     if (response.statusCode == 200) {
       final List<dynamic> fetchedProducts = json.decode(response.body);
       setState(() {
         products.addAll(fetchedProducts);
         isLoading = false;
-        hasMore = fetchedProducts.length > 0;
+        hasMore = fetchedProducts.isNotEmpty;
         page++;
       });
     } else {
@@ -45,13 +47,6 @@ class _ShopScreenState extends State<ShopScreen> {
         isLoading = false;
       });
     }
-  }
-
-  void addToCart(product) {
-    // Handle adding to cart functionality
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${product['name']} added to cart'),
-    ));
   }
 
   @override
@@ -81,13 +76,6 @@ class _ShopScreenState extends State<ShopScreen> {
             final product = products[index];
             return ProductItem(
               product: product,
-              onAddToCart: () => addToCart(product),
-              selectedVariant: selectedVariants[product['id']],
-              onVariantSelected: (variant) {
-                setState(() {
-                  selectedVariants[product['id']] = variant;
-                });
-              },
             );
           },
         ),
